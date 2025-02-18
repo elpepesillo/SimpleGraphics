@@ -135,7 +135,16 @@ void sgShowWindow(SGwindow window) {
 	ShowWindow(window->hWnd, SW_SHOW);
 }
 
-bool sgGetInstanceProcAddr(VkInstance vkInstance, const char* pName, PFN_vkVoidFunction* pFunction) {
+/**
+ * @brief Retrieve a function pointer compatible with a vulkan instance
+ * @param vkInstance Vulkan instance that the function will be compatible with
+ * @param pName Name of the function to retrieve
+ * @param pFunction Out function pointer
+ * @return True if the function pointer was found
+ * @return False otherwise
+*/
+
+bool sgGetInstanceFunctionPointer(VkInstance vkInstance, const char* pName, PFN_vkVoidFunction* pFunction) {
 	if (ipa == NULL) {
 		HMODULE vulkanDll = LoadLibrary("vulkan-1.dll");
 		if (vulkanDll == 0) {
@@ -171,7 +180,7 @@ VkResult sgVkCreateSurface(VkInstance vkInstance, SGwindow window, VkSurfaceKHR*
 	};
 
 	PFN_vkCreateWin32SurfaceKHR createSurface = NULL;
-	sgGetInstanceProcAddr(vkInstance, "vkCreateWin32SurfaceKHR", &(PFN_vkVoidFunction)createSurface);
+	sgGetInstanceFunctionPointer(vkInstance, "vkCreateWin32SurfaceKHR", &(PFN_vkVoidFunction)createSurface);
 
 	return createSurface(vkInstance, &createInfo, NULL, vkSurface);
 }

@@ -20,7 +20,7 @@ void sgProcessWindow(SGwindow window);
 
 void sgShowWindow(SGwindow window);
 
-bool sgGetInstanceProcAddr(VkInstance vkInstance, const char* pName, PFN_vkVoidFunction* pFunction);
+bool sgGetInstanceFunctionPointer(VkInstance vkInstance, const char* pName, PFN_vkVoidFunction* pFunction);
 
 VkResult sgVkCreateSurface(VkInstance vkInstance, SGwindow window, VkSurfaceKHR* vkSurface);
 
