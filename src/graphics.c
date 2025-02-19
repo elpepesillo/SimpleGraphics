@@ -2,7 +2,7 @@
 #include <simple_graphics/platform.h>
 #include <stdlib.h>
 
-VkResult sgVkCreateInstance(VkInstance* vkInstance) {
+VkResult sgVkCreateInstance(VkInstance* vkInstance, uint32_t vulkanTargetVersion) {
 	const VkApplicationInfo appInfo = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext = NULL,
@@ -10,7 +10,7 @@ VkResult sgVkCreateInstance(VkInstance* vkInstance) {
 		.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0),
 		.pEngineName = NULL,
 		.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0),
-		.apiVersion = VK_MAKE_API_VERSION(0, 1, 4, 0)
+		.apiVersion = vulkanTargetVersion
 	};
 
 	const VkInstanceCreateInfo createInfo = {
@@ -46,7 +46,52 @@ void sgVkDestroySurface(VkInstance vkInstance, VkSurfaceKHR vkSurface) {
 	}
 }
 
-VkResult sgVkGetRecommendedGpu(VkInstance vkInstance, VkSurfaceKHR vkSurface, uint32_t* pQueueFamilyIndex, VkPhysicalDevice* pGpu) {
+VkResult sgVkFindQueueFamily(VkInstance vkInstance, VkPhysicalDevice vkGpu, VkSurfaceKHR vkSurface, uint32_t* pQueueFamilyIndex) {
+	PFN_vkGetPhysicalDeviceQueueFamilyProperties getGpuQueueFamilies = NULL;
+	if (!sgGetInstanceFunctionPointer(vkInstance, "vkGetPhysicalDeviceQueueFamilyProperties", &(PFN_vkVoidFunction)getGpuQueueFamilies)) {
+		return VK_ERROR_INITIALIZATION_FAILED;
+	}
+	PFN_vkGetPhysicalDeviceSurfaceSupportKHR getGpuSurfaceSupport = NULL;
+	if (!sgGetInstanceFunctionPointer(vkInstance, "vkGetPhysicalDeviceSurfaceSupportKHR", &(PFN_vkVoidFunction)getGpuSurfaceSupport)) {
+		return VK_ERROR_INITIALIZATION_FAILED;
+	}
+
+	uint32_t gpuQueueFamilyCount = 0;
+	getGpuQueueFamilies(vkGpu, &gpuQueueFamilyCount, NULL);
+
+	VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties) * gpuQueueFamilyCount);
+	if (!queueFamilies) {
+		return VK_ERROR_OUT_OF_HOST_MEMORY;
+	}
+	getGpuQueueFamilies(vkGpu, &gpuQueueFamilyCount, queueFamilies);
+
+	uint32_t queueFamilyIndex = 0;
+	bool isQueueFamilyFound = false;
+	for (uint32_t i = 0; i < gpuQueueFamilyCount; i++) {
+		VkQueueFamilyProperties queueFamily = queueFamilies[i];
+		VkBool32 isSurfaceSupported = VK_FALSE;
+		if (getGpuSurfaceSupport(vkGpu, i, vkSurface, &isSurfaceSupported) != VK_SUCCESS) {
+			continue;
+		}
+
+		bool isCapableOfGraphics = queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT;
+		if (isCapableOfGraphics && isSurfaceSupported) {
+			isQueueFamilyFound = true;
+			queueFamilyIndex = i;
+			break;
+		}
+
+	}
+
+	if (!isQueueFamilyFound) {
+		return VK_ERROR_INITIALIZATION_FAILED;
+	}
+
+	*pQueueFamilyIndex = queueFamilyIndex;
+	return VK_SUCCESS;
+}
+
+VkResult sgVkGetRecommendedGpu(VkInstance vkInstance, uint32_t targetVulkanVersion, VkPhysicalDevice* pGpu) {
 	PFN_vkEnumeratePhysicalDevices enumerateGpus = NULL;
 	if (!sgGetInstanceFunctionPointer(vkInstance, "vkEnumeratePhysicalDevices", &(PFN_vkVoidFunction)enumerateGpus)) {
 		return VK_ERROR_INITIALIZATION_FAILED;
@@ -72,69 +117,31 @@ VkResult sgVkGetRecommendedGpu(VkInstance vkInstance, VkSurfaceKHR vkSurface, ui
 	if (!sgGetInstanceFunctionPointer(vkInstance, "vkGetPhysicalDeviceProperties", &(PFN_vkVoidFunction)getGpuProperties)) {
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
-	PFN_vkGetPhysicalDeviceQueueFamilyProperties getGpuQueueFamilies = NULL;
-	if (!sgGetInstanceFunctionPointer(vkInstance, "vkGetPhysicalDeviceQueueFamilyProperties", &(PFN_vkVoidFunction)getGpuQueueFamilies)) {
-		return VK_ERROR_INITIALIZATION_FAILED;
-	}
-	PFN_vkGetPhysicalDeviceSurfaceSupportKHR getGpuSurfaceSupport = NULL;
-	if (!sgGetInstanceFunctionPointer(vkInstance, "vkGetPhysicalDeviceSurfaceSupportKHR", &(PFN_vkVoidFunction)getGpuSurfaceSupport)) {
-		return VK_ERROR_INITIALIZATION_FAILED;
-	}
 
-	VkPhysicalDevice choosenGpu = VK_NULL_HANDLE;
-	uint32_t queueFamilyIndex = 0;
+	VkPhysicalDevice recommendedGpu = VK_NULL_HANDLE;
 	for (uint32_t i = 0; i < gpuCount; i++) {
 		VkPhysicalDevice gpu = gpus[i];
 
 		VkPhysicalDeviceProperties gpuProperties;
 		getGpuProperties(gpu, &gpuProperties);
 
-		if (gpuProperties.apiVersion < VK_API_VERSION_1_4) {
+		if (gpuProperties.apiVersion < targetVulkanVersion) {
 			continue;
 		}
+		recommendedGpu = gpu;
 
-		uint32_t gpuQueueFamilyCount = 0;
-		getGpuQueueFamilies(gpu, &gpuQueueFamilyCount, NULL);
-
-		VkQueueFamilyProperties* gpuQueueFamilies = malloc(sizeof(VkQueueFamilyProperties) * gpuQueueFamilyCount);
-		if (!gpuQueueFamilies) {
-			continue;
-		}
-		getGpuQueueFamilies(gpu, &gpuQueueFamilyCount, gpuQueueFamilies);
-
-		bool gpuHasSuitableQueueFamily = false;
-		for (uint32_t j = 0; j < gpuQueueFamilyCount; j++) {
-			VkQueueFamilyProperties queueFamily = gpuQueueFamilies[j];
-
-			VkBool32 queueFamilySupportsSurface = VK_FALSE;
-			if (getGpuSurfaceSupport(gpu, j, vkSurface, &queueFamilySupportsSurface) != VK_SUCCESS) {
-				continue;
-			}
-			bool queueFamilySupportsGraphics = queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT;
-
-			if (queueFamilySupportsGraphics && queueFamilySupportsSurface) {
-				gpuHasSuitableQueueFamily = true;
-				queueFamilyIndex = j;
-				choosenGpu = gpu;
-				break;
-			}
-
-		}
-		free(gpuQueueFamilies);
-
-		// Prioritize dedicated GPUs
-		bool gpuIsDedicated = gpuProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
-		if (gpuHasSuitableQueueFamily && gpuIsDedicated) {
+		//Prioritize dedicated GPUs
+		if (gpuProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
 			break;
 		}
 
 	}
 	free(gpus);
-
-	bool noSuitableGpuFound = (choosenGpu == VK_NULL_HANDLE);
-	if (noSuitableGpuFound) {
+	
+	if (recommendedGpu == VK_NULL_HANDLE) {
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
 
+	*pGpu = recommendedGpu;
 	return VK_SUCCESS;
 }
