@@ -173,7 +173,7 @@ bool sgGetDeviceFunctionPointer(VkInstance vkInstance, VkDevice vkDevice, const 
 			return false;
 		}
 	}
-	PFN_vkVoidFunction pointerFunction = getDeviceProcAddr(vkDevice, pName);
+	PFN_vkVoidFunction pointerFunction = dpa(vkDevice, pName);
 	if (pointerFunction == NULL) {
 		return false;
 	}
