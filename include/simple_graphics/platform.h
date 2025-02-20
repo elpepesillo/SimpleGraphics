@@ -22,6 +22,8 @@ void sgShowWindow(SGwindow window);
 
 bool sgGetInstanceFunctionPointer(VkInstance vkInstance, const char* pName, PFN_vkVoidFunction* pFunction);
 
+bool sgGetDeviceFunctionPointer(VkInstance vkInstance, VkDevice vkDevice, const char* pName, PFN_vkVoidFunction* pFunction);
+
 VkResult sgVkCreateSurface(VkInstance vkInstance, SGwindow window, VkSurfaceKHR* vkSurface);
 
 #endif // !SG_PLATFORM_H_

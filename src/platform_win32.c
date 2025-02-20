@@ -5,6 +5,7 @@ const char* className = "simple_window";
 HINSTANCE hInstance = NULL;
 
 PFN_vkGetInstanceProcAddr ipa = NULL;
+PFN_vkGetDeviceProcAddr dpa = NULL;
 
 uint32_t INSTANCE_EXTENSIONS_COUNT = 2;
 
@@ -162,6 +163,20 @@ bool sgGetInstanceFunctionPointer(VkInstance vkInstance, const char* pName, PFN_
 		return false;
 	}
 
+	*pFunction = pointerFunction;
+	return true;
+}
+
+bool sgGetDeviceFunctionPointer(VkInstance vkInstance, VkDevice vkDevice, const char* pName, PFN_vkVoidFunction* pFunction) {
+	if (dpa == NULL) {
+		if (!sgGetInstanceFunctionPointer(vkInstance, "vkGetDeviceProcAddr", &(PFN_vkVoidFunction)dpa)) {
+			return false;
+		}
+	}
+	PFN_vkVoidFunction pointerFunction = getDeviceProcAddr(vkDevice, pName);
+	if (pointerFunction == NULL) {
+		return false;
+	}
 	*pFunction = pointerFunction;
 	return true;
 }
