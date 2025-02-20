@@ -3,13 +3,13 @@
 
 #include <vulkan/vulkan.h>
 
-VkResult sgVkCreateInstance(VkInstance* vkInstance, uint32_t vulkanTargetVersion);
+VkResult sgVkCreateInstance(VkInstance* vkInstance);
 
 void sgVkDestroyInstance(VkInstance vkInstance);
 
 void sgVkDestroySurface(VkInstance vkInstance, VkSurfaceKHR vkSurface);
 
-VkResult sgVkGetRecommendedGpu(VkInstance vkInstance, uint32_t targetVulkanVersion, VkPhysicalDevice* pGpu);
+VkResult sgVkGetRecommendedGpu(VkInstance vkInstance, VkPhysicalDevice* pGpu);
 
 VkResult sgVkFindQueueFamily(VkInstance vkInstance, VkPhysicalDevice vkGpu, VkSurfaceKHR vkSurface, uint32_t* pQueueFamilyIndex);
 
