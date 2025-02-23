@@ -83,6 +83,7 @@ bool sgInitialize() {
 	if (instanceProcAddr == NULL) {
 		return false;
 	}
+	isSgInitialized = true;
 
 	return true;
 }
