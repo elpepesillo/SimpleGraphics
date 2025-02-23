@@ -2,7 +2,11 @@
 #include <simple_graphics/platform.h>
 #include <stdlib.h>
 
-VkResult sgVkCreateInstance(VkInstance* vkInstance) {
+VkResult sgVkCreateInstance(VkInstance* pInstance) {
+	if (!isSgInitialized) {
+		return VK_ERROR_INITIALIZATION_FAILED;
+	}
+
 	const VkApplicationInfo appInfo = {
 		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 		.pNext = NULL,
@@ -10,7 +14,7 @@ VkResult sgVkCreateInstance(VkInstance* vkInstance) {
 		.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0),
 		.pEngineName = NULL,
 		.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0),
-		.apiVersion = VK_API_VERSION_1_3
+		.apiVersion = VK_API_VERSION_1_0
 	};
 
 	const VkInstanceCreateInfo createInfo = {
@@ -24,39 +28,40 @@ VkResult sgVkCreateInstance(VkInstance* vkInstance) {
 		.ppEnabledExtensionNames = INSTANCE_EXTENSIONS
 	};
 
-	PFN_vkCreateInstance createInstance = NULL;
-	if (!sgGetInstanceFunctionPointer(NULL, "vkCreateInstance", &(PFN_vkVoidFunction)createInstance)) {
-		return VK_ERROR_INITIALIZATION_FAILED;
-	}
-
-	return createInstance(&createInfo, NULL, vkInstance);
+	PFN_vkCreateInstance createInstance = (PFN_vkCreateInstance)instanceProcAddr(NULL, "vkCreateInstance");
+	return createInstance(&createInfo, NULL, pInstance);
 }
 
 void sgVkDestroyInstance(VkInstance vkInstance) {
-	PFN_vkDestroyInstance destroyInstance = NULL;
-	if (!sgGetInstanceFunctionPointer(vkInstance, "vkDestroyInstance", &(PFN_vkVoidFunction)destroyInstance)) {
-		destroyInstance(vkInstance, NULL);
+	if (!isSgInitialized) {
+		return;
 	}
+
+	PFN_vkDestroyInstance destroyInstance = (PFN_vkDestroyInstance)instanceProcAddr(vkInstance, "vkDestroyInstance");
+	destroyInstance(vkInstance, NULL);
 }
 
 void sgVkDestroySurface(VkInstance vkInstance, VkSurfaceKHR vkSurface) {
-	PFN_vkDestroySurfaceKHR destroySurface = NULL;
-	if (sgGetInstanceFunctionPointer(vkInstance, "vkDestroySurfaceKHR", &(PFN_vkVoidFunction)destroySurface)) {
-		destroySurface(vkInstance, vkSurface, NULL);
+	if (!isSgInitialized) {
+		return;
 	}
+
+	PFN_vkDestroySurfaceKHR destroySurface = (PFN_vkDestroySurfaceKHR)instanceProcAddr(vkInstance, "vkDestroySurfaceKHR");
+	destroySurface(vkInstance, vkSurface, NULL);
 }
 
 VkResult sgVkGetRecommendedGpu(VkInstance vkInstance, VkPhysicalDevice* pGpu) {
-	PFN_vkEnumeratePhysicalDevices enumerateGpus = NULL;
-	if (!sgGetInstanceFunctionPointer(vkInstance, "vkEnumeratePhysicalDevices", &(PFN_vkVoidFunction)enumerateGpus)) {
+	if (!isSgInitialized) {
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
+
+	PFN_vkEnumeratePhysicalDevices enumerateGpus = (PFN_vkEnumeratePhysicalDevices)instanceProcAddr(vkInstance, "vkEnumeratePhysicalDevices");
 
 	uint32_t gpuCount = 0;
 	if (enumerateGpus(vkInstance, &gpuCount, NULL) != VK_SUCCESS) {
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
-	if (gpuCount == 0) {
+	if (gpuCount < 1) {
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
 
@@ -68,24 +73,15 @@ VkResult sgVkGetRecommendedGpu(VkInstance vkInstance, VkPhysicalDevice* pGpu) {
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
 
-	PFN_vkGetPhysicalDeviceProperties getGpuProperties = NULL;
-	if (!sgGetInstanceFunctionPointer(vkInstance, "vkGetPhysicalDeviceProperties", &(PFN_vkVoidFunction)getGpuProperties)) {
-		return VK_ERROR_INITIALIZATION_FAILED;
-	}
+	PFN_vkGetPhysicalDeviceProperties getGpuProperties = (PFN_vkGetPhysicalDeviceProperties)instanceProcAddr(vkInstance, "vkGetPhysicalDeviceProperties");
 
 	VkPhysicalDevice recommendedGpu = VK_NULL_HANDLE;
 	for (uint32_t i = 0; i < gpuCount; i++) {
-		VkPhysicalDevice gpu = gpus[i];
+		recommendedGpu = gpus[i];
 
 		VkPhysicalDeviceProperties gpuProperties;
-		getGpuProperties(gpu, &gpuProperties);
+		getGpuProperties(recommendedGpu, &gpuProperties);
 
-		if (gpuProperties.apiVersion < VK_API_VERSION_1_3) {
-			continue;
-		}
-		recommendedGpu = gpu;
-
-		//Prioritize dedicated GPUs
 		if (gpuProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
 			break;
 		}
@@ -102,14 +98,12 @@ VkResult sgVkGetRecommendedGpu(VkInstance vkInstance, VkPhysicalDevice* pGpu) {
 }
 
 VkResult sgVkFindQueueFamily(VkInstance vkInstance, VkPhysicalDevice vkGpu, VkSurfaceKHR vkSurface, uint32_t* pQueueFamilyIndex) {
-	PFN_vkGetPhysicalDeviceQueueFamilyProperties getGpuQueueFamilies = NULL;
-	if (!sgGetInstanceFunctionPointer(vkInstance, "vkGetPhysicalDeviceQueueFamilyProperties", &(PFN_vkVoidFunction)getGpuQueueFamilies)) {
+	if (!isSgInitialized) {
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
-	PFN_vkGetPhysicalDeviceSurfaceSupportKHR getGpuSurfaceSupport = NULL;
-	if (!sgGetInstanceFunctionPointer(vkInstance, "vkGetPhysicalDeviceSurfaceSupportKHR", &(PFN_vkVoidFunction)getGpuSurfaceSupport)) {
-		return VK_ERROR_INITIALIZATION_FAILED;
-	}
+
+	PFN_vkGetPhysicalDeviceQueueFamilyProperties getGpuQueueFamilies = (PFN_vkGetPhysicalDeviceQueueFamilyProperties)instanceProcAddr(vkInstance, "vkGetPhysicalDeviceQueueFamilyProperties");
+	PFN_vkGetPhysicalDeviceSurfaceSupportKHR getGpuSurfaceSupport = (PFN_vkGetPhysicalDeviceSurfaceSupportKHR)instanceProcAddr(vkInstance, "vkGetPhysicalDeviceSupportKHR");
 
 	uint32_t gpuQueueFamilyCount = 0;
 	getGpuQueueFamilies(vkGpu, &gpuQueueFamilyCount, NULL);
