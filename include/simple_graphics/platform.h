@@ -5,11 +5,6 @@
 #include <stdbool.h>
 
 /**
-* @brief After initialization, this will point to the vulkan dll vkGetInstanceProcAddr function.
-**/
-extern PFN_vkGetInstanceProcAddr instanceProcAddr;
-
-/**
 * @brief Number of extensions required by a vulkan instance.
 **/
 extern uint32_t INSTANCE_EXTENSIONS_COUNT;
@@ -20,45 +15,39 @@ extern uint32_t INSTANCE_EXTENSIONS_COUNT;
 extern const char* INSTANCE_EXTENSIONS[];
 
 /**
-* @brief True if the platform has already been initialized, false otherwise.
+* @brief Opaque handler for cross-platform windows.
 **/
-extern bool isSgInitialized;
+typedef struct SGwindow SGwindow;
 
 /**
-* @brief Opaque handler for platform dependant windows.
+* @return Vulkan instance function compatible with the passed instance.
 **/
-typedef struct SGwindow_T* SGwindow;
+PFN_vkVoidFunction sgGetVulkanInstanceFunction(VkInstance vkInstance, const char* pName);
 
 /**
-* @brief Initializes platform dependant variables.
-* @return True if the initialization was successful, false otherwise.
-**/
-bool sgInitialize();
-
-/**
-* @brief Creates a cross platform window.
+* @brief Creates a SimpleGraphics window.
 * @return True if the window was created successfully, false otherwise.
 **/
-bool sgCreateWindow(const char* title, int width, int height, bool resizable, SGwindow* pWindow);
+SGwindow* sgCreateWindow(const char* title, int width, int height, bool resizable);
 
 /**
 * @brief Destroys a SimpleGraphics window.
 **/
-void sgDestroyWindow(SGwindow window);
+void sgDestroyWindow(SGwindow* window);
 
 /**
-* @return True if the passed window is closed, false otherwise.
+* @return True if the passed window exists, false otherwise.
 **/
-bool sgIsWindowClosed(SGwindow window);
+bool sgWindowExists(SGwindow* window);
 
 /**
 * @brief Processes platform dependant window events.
 **/
-void sgProcessWindow(SGwindow window);
+void sgProcessWindow(SGwindow* window);
 
 /**
 * @brief Creates a vulkan surface appropiate for your platform
 **/
-VkResult sgVkCreateSurface(VkInstance vkInstance, SGwindow window, VkSurfaceKHR* vkSurface);
+VkResult sgVkCreateSurface(VkInstance vkInstance, SGwindow* window, VkSurfaceKHR* vkSurface);
 
 #endif // !SG_PLATFORM_H_

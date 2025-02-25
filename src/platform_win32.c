@@ -1,27 +1,23 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <simple_graphics/platform.h>
 
+PFN_vkGetInstanceProcAddr instanceProcAddr = NULL;
 const char* className = "simple_window";
 HINSTANCE hInstance = NULL;
 
-PFN_vkGetInstanceProcAddr instanceProcAddr = NULL;
-
 uint32_t INSTANCE_EXTENSIONS_COUNT = 2;
-
 const char* INSTANCE_EXTENSIONS[] = {
 	VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 	VK_KHR_SURFACE_EXTENSION_NAME
 };
 
-bool isSgInitialized = false;
-
-struct SGwindow_T {
-	bool isClosed;
+struct SGwindow {
+	bool exists;
 	HWND hWnd;
 };
 
 static LRESULT CALLBACK sgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-	struct SGwindow_T* ptrWindow = (struct SGwindow_T*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+	struct SGwindow* ptrWindow = (struct SGwindow*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
 
 	switch (msg) {
 
@@ -37,7 +33,7 @@ static LRESULT CALLBACK sgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 		break;
 	}
 	case WM_DESTROY: {
-		ptrWindow->isClosed = true;
+		ptrWindow->exists = false;
 		PostQuitMessage(0);
 		break;
 	}
@@ -47,17 +43,25 @@ static LRESULT CALLBACK sgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
 	return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
-bool sgInitialize() {
-	if (isSgInitialized) {
-		return false;
+PFN_vkVoidFunction sgGetVulkanInstanceFunction(VkInstance vkInstance, const char* pName) {
+	if (instanceProcAddr == NULL) {
+		HMODULE vulkanDll = LoadLibrary("vulkan-1.dll");
+		if (vulkanDll == NULL) {
+			return NULL;
+		}
+		instanceProcAddr = (PFN_vkGetInstanceProcAddr)GetProcAddress(vulkanDll, "vkGetInstanceProcAddr");
 	}
+	return instanceProcAddr(vkInstance, pName);
+}
 
-	hInstance = GetModuleHandle(NULL);
+SGwindow* sgCreateWindow(const char* title, int width, int height, bool resizable) {
 	if (hInstance == NULL) {
-		return false;
-	}
+		hInstance = GetModuleHandle(NULL);
+		if (hInstance == NULL) {
+			return NULL;
+		}
 
-	const WNDCLASSEX wc = {
+		const WNDCLASSEX wc = {
 		.cbSize = sizeof(WNDCLASSEX),
 		.style = CS_OWNDC,
 		.lpfnWndProc = sgWndProc,
@@ -69,33 +73,16 @@ bool sgInitialize() {
 		.hbrBackground = 0,
 		.lpszClassName = className,
 		.hIconSm = LoadIcon(NULL, IDI_APPLICATION)
-	};
-	if (!RegisterClassEx(&wc)) {
-		return false;
+		};
+
+		if (!RegisterClassEx(&wc)) {
+			return NULL;
+		}
 	}
 
-	HMODULE vulkanDll = LoadLibrary("vulkan-1.dll");
-	if (vulkanDll == 0) {
-		return false;
-	}
-
-	instanceProcAddr = (PFN_vkGetInstanceProcAddr)GetProcAddress(vulkanDll, "vkGetInstanceProcAddr");
-	if (instanceProcAddr == NULL) {
-		return false;
-	}
-	isSgInitialized = true;
-
-	return true;
-}
-
-bool sgCreateWindow(const char* title, int width, int height, bool resizable, SGwindow* pWindow) {
-	if (!isSgInitialized) {
-		return false;
-	}
-
-	struct SGwindow_T* ptrWindow = malloc(sizeof(struct SGwindow_T));
+	struct SGwindow* ptrWindow = malloc(sizeof(struct SGwindow));
 	if (!ptrWindow) {
-		return false;
+		return NULL;
 	}
 
 	RECT screenRect;
@@ -123,32 +110,28 @@ bool sgCreateWindow(const char* title, int width, int height, bool resizable, SG
 
 	if (ptrWindow->hWnd == NULL) {
 		free(ptrWindow);
-		return false;
+		return NULL;
 	}
 	ShowWindow(ptrWindow->hWnd, SW_SHOW);
-
-	ptrWindow->isClosed = false;
-	*pWindow = ptrWindow;
-
-	return true;
+	return ptrWindow;
 }
 
-void sgDestroyWindow(SGwindow window) {
+void sgDestroyWindow(SGwindow* window) {
 	if (window == NULL) {
 		return;
 	}
 	DestroyWindow(window->hWnd);
 }
 
-bool sgIsWindowClosed(SGwindow window) {
-	if (window->isClosed) {
+bool sgWindowExists(SGwindow* window) {
+	if (!window->exists) {
 		free(window);
 		return true;
 	}
 	return false;
 }
 
-void sgProcessWindow(SGwindow window) {
+void sgProcessWindow(SGwindow* window) {
 	if (window == NULL) {
 		return;
 	}
@@ -159,8 +142,8 @@ void sgProcessWindow(SGwindow window) {
 	}
 }
 
-VkResult sgVkCreateSurface(VkInstance vkInstance, SGwindow window, VkSurfaceKHR* vkSurface) {
-	if (hInstance == NULL || window == NULL || !isSgInitialized) {
+VkResult sgVkCreateSurface(VkInstance vkInstance, SGwindow* window, VkSurfaceKHR* vkSurface) {
+	if (hInstance == NULL || window == NULL) {
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
 	
@@ -172,6 +155,6 @@ VkResult sgVkCreateSurface(VkInstance vkInstance, SGwindow window, VkSurfaceKHR*
 		.hwnd = window->hWnd
 	};
 
-	PFN_vkCreateWin32SurfaceKHR createSurface = (PFN_vkCreateWin32SurfaceKHR)instanceProcAddr(vkInstance, "vkCreateWin32SurfaceKHR");
+	PFN_vkCreateWin32SurfaceKHR createSurface = (PFN_vkCreateWin32SurfaceKHR)sgGetVulkanInstanceFunction(vkInstance, "vkCreateWin32SurfaceKHR");
 	return createSurface(vkInstance, &createInfo, NULL, vkSurface);
 }
