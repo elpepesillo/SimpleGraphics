@@ -58,7 +58,7 @@ VkResult sgVkGetRecommendedGpu(VkInstance vkInstance, VkSurfaceKHR vkSurface, Vk
 	}
 
 	PFN_vkGetPhysicalDeviceQueueFamilyProperties getGpuQueueFamilies = (PFN_vkGetPhysicalDeviceQueueFamilyProperties)sgGetVulkanInstanceFunction(vkInstance, "vkGetPhysicalDeviceQueueFamilyProperties");
-	PFN_vkGetPhysicalDeviceSurfaceSupportKHR getGpuSurfaceSupport = (PFN_vkGetPhysicalDeviceSurfaceSupportKHR)sgGetVulkanInstanceFunction(vkInstance, "vkGetPhysicalDeviceSupportKHR");
+	PFN_vkGetPhysicalDeviceSurfaceSupportKHR getGpuSurfaceSupport = (PFN_vkGetPhysicalDeviceSurfaceSupportKHR)sgGetVulkanInstanceFunction(vkInstance, "vkGetPhysicalDeviceSurfaceSupportKHR");
 	PFN_vkGetPhysicalDeviceProperties getGpuProperties = (PFN_vkGetPhysicalDeviceProperties)sgGetVulkanInstanceFunction(vkInstance, "vkGetPhysicalDeviceProperties");
 
 	VkPhysicalDevice recommendedGpu = VK_NULL_HANDLE;
