@@ -113,6 +113,8 @@ SGwindow* sgCreateWindow(const char* title, int width, int height, bool resizabl
 		return NULL;
 	}
 	ShowWindow(ptrWindow->hWnd, SW_SHOW);
+	ptrWindow->exists = true;
+
 	return ptrWindow;
 }
 
@@ -124,10 +126,10 @@ void sgDestroyWindow(SGwindow* window) {
 }
 
 bool sgWindowExists(SGwindow* window) {
-	if (!window->exists) {
-		free(window);
+	if (window->exists) {
 		return true;
 	}
+	free(window);
 	return false;
 }
 
